@@ -1,189 +1,1102 @@
-<script>
-  const STORAGE_KEY = 'mw5_news2_tep_audit_entries_v4';
-  const auditDateInput = document.getElementById('auditDate');
-  const saveEntryBtn = document.getElementById('saveEntryBtn');
-  const exportCsvBtn = document.getElementById('exportCsvBtn');
-  const downloadBlankBtn = document.getElementById('downloadBlankBtn');
-  const clearAllBtn = document.getElementById('clearAllBtn');
-  const statusText = document.getElementById('statusText');
-  const form = document.getElementById('auditForm');
-
-  const nurseDuringFirstType = document.getElementById('nurseDuringFirstType');
-  const nurseDuringFirstNameWrap = document.getElementById('nurseDuringFirstNameWrap');
-  const nurseDuringFirstName = document.getElementById('nurseDuringFirstName');
-
-  const nurseDuringHighestType = document.getElementById('nurseDuringHighestType');
-  const nurseDuringHighestNameWrap = document.getElementById('nurseDuringHighestNameWrap');
-  const nurseDuringHighestName = document.getElementById('nurseDuringHighestName');
-
-  function setToday() {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
-    auditDateInput.value = `${year}-${month}-${day}`;
-  }
-
-  function toggleWardNurseField(typeEl, wrapEl, nameEl) {
-    const isWardNurse = typeEl.value === 'Ward nurse';
-    wrapEl.classList.toggle('hidden', !isWardNurse);
-    nameEl.required = isWardNurse;
-    if (!isWardNurse) nameEl.value = '';
-  }
-
-  function getEntries() {
-    try {
-      return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
-    } catch {
-      return [];
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MW5 NEWS2 / TEP Ward Audit</title>
+  <style>
+    :root {
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --text: #0f172a;
+      --muted: #475569;
+      --border: #e2e8f0;
+      --accent: #2563eb;
+      --accent-2: #1d4ed8;
+      --danger: #dc2626;
+      --ok: #15803d;
+      --warn: #b45309;
+      --pill: #f1f5f9;
     }
-  }
 
-  function saveEntries(entries) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
-  }
+    * { box-sizing: border-box; }
 
-  function csvEscape(value) {
-    return `"${String(value ?? '').replace(/"/g, '""')}"`;
-  }
-
-  function buildEntry() {
-    const data = new FormData(form);
-    const entry = {};
-    for (const [key, value] of data.entries()) entry[key] = value;
-    entry.submitted_at = new Date().toISOString();
-    return entry;
-  }
-
-  function validateConditionalFields() {
-    if (nurseDuringFirstType.value === 'Ward nurse' && !nurseDuringFirstName.value) {
-      statusText.textContent = 'Please choose who the ward nurse was during first escalation.';
-      return false;
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      background: var(--bg);
+      color: var(--text);
     }
-    if (nurseDuringHighestType.value === 'Ward nurse' && !nurseDuringHighestName.value) {
-      statusText.textContent = 'Please choose who the ward nurse was during highest escalation.';
-      return false;
+
+    header {
+      padding: 24px 20px 12px;
+      max-width: 1180px;
+      margin: 0 auto;
     }
-    return true;
-  }
 
-  function toCsv(entries) {
-    if (!entries.length) return '';
-    const headers = Array.from(entries.reduce((set, row) => {
-      Object.keys(row).forEach(k => set.add(k));
-      return set;
-    }, new Set()));
-    const lines = [headers.map(csvEscape).join(',')];
-    entries.forEach(row => lines.push(headers.map(h => csvEscape(row[h] ?? '')).join(',')));
-    return lines.join('\n');
-  }
+    h1 {
+      margin: 0 0 8px;
+      font-size: 2rem;
+    }
 
-  function downloadFile(filename, content, type = 'text/csv;charset=utf-8;') {
-    const blob = new Blob([content], { type });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-  }
+    h2 {
+      margin-top: 0;
+      font-size: 1.25rem;
+    }
 
-  function assessableYesMetrics(entries, fieldName, pctElId, subElId) {
-    const assessable = entries.filter(e => e[fieldName] !== 'N/A' && e[fieldName] !== '');
-    const yesCount = assessable.filter(e => e[fieldName] === 'Yes').length;
-    const pct = assessable.length ? ((yesCount / assessable.length) * 100).toFixed(1) : '0.0';
-    document.getElementById(pctElId).textContent = `${pct}%`;
-    document.getElementById(subElId).textContent = `${yesCount}/${assessable.length} assessable Yes`;
-  }
+    h3 {
+      margin-bottom: 8px;
+      font-size: 1rem;
+    }
 
-  function updateSummary() {
-    const entries = getEntries();
-    document.getElementById('sum_cases').textContent = entries.length;
-    assessableYesMetrics(entries, 'tep_present', 'sum_tep_present_pct', 'sum_tep_present_sub');
-    assessableYesMetrics(entries, 'tep_front', 'sum_tep_front_pct', 'sum_tep_front_sub');
-    assessableYesMetrics(entries, 'tep_done', 'sum_tep_done_pct', 'sum_tep_done_sub');
-    assessableYesMetrics(entries, 'first_abnormal_documented', 'sum_first_doc_pct', 'sum_first_doc_sub');
-    assessableYesMetrics(entries, 'highest_abnormal_documented', 'sum_highest_doc_pct', 'sum_highest_doc_sub');
-    assessableYesMetrics(entries, 'highest_abnormal_escalation_correct', 'sum_highest_esc_pct', 'sum_highest_esc_sub');
+    p {
+      margin: 8px 0;
+      color: var(--muted);
+    }
 
-    const tepLevelAssessable = entries.filter(e => e.tep_level && e.tep_level !== 'N/A');
-    const lvl1 = tepLevelAssessable.filter(e => e.tep_level === 'Level 1').length;
-    const lvl2 = tepLevelAssessable.filter(e => e.tep_level === 'Level 2').length;
-    const lvl3 = tepLevelAssessable.filter(e => e.tep_level === 'Level 3').length;
-    document.getElementById('sum_tep_level_pct').textContent = tepLevelAssessable.length ? '100.0%' : '0.0%';
-    document.getElementById('sum_tep_level_sub').textContent = `${tepLevelAssessable.length}/${tepLevelAssessable.length} assessable Yes`;
-    document.getElementById('sum_lvl1').textContent = `${lvl1} / ${tepLevelAssessable.length}`;
-    document.getElementById('sum_lvl2').textContent = `${lvl2} / ${tepLevelAssessable.length}`;
-    document.getElementById('sum_lvl3').textContent = `${lvl3} / ${tepLevelAssessable.length}`;
-  }
+    .wrap {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 0 20px 28px;
+    }
 
-  setToday();
-  toggleWardNurseField(nurseDuringFirstType, nurseDuringFirstNameWrap, nurseDuringFirstName);
-  toggleWardNurseField(nurseDuringHighestType, nurseDuringHighestNameWrap, nurseDuringHighestName);
-  updateSummary();
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 18px;
+      box-shadow: 0 8px 20px rgba(15, 23, 42, 0.04);
+      margin-bottom: 16px;
+    }
 
-  nurseDuringFirstType.addEventListener('change', () =>
-    toggleWardNurseField(nurseDuringFirstType, nurseDuringFirstNameWrap, nurseDuringFirstName)
-  );
+    .grid {
+      display: grid;
+      gap: 14px;
+    }
 
-  nurseDuringHighestType.addEventListener('change', () =>
-    toggleWardNurseField(nurseDuringHighestType, nurseDuringHighestNameWrap, nurseDuringHighestName)
-  );
+    .grid-2 { grid-template-columns: repeat(2, 1fr); }
+    .grid-3 { grid-template-columns: repeat(3, 1fr); }
+    .grid-4 { grid-template-columns: repeat(4, 1fr); }
 
-  saveEntryBtn.addEventListener('click', () => {
-    if (!form.reportValidity()) return;
-    if (!validateConditionalFields()) return;
+    label {
+      display: block;
+      margin-bottom: 6px;
+      font-weight: 700;
+      color: var(--text);
+    }
 
-    const entries = getEntries();
-    entries.push(buildEntry());
-    saveEntries(entries);
-    updateSummary();
+    input, select, textarea, button {
+      font: inherit;
+    }
 
-    statusText.textContent = `Audit entry saved. Total saved entries: ${entries.length}.`;
-    form.reset();
+    input[type="text"],
+    input[type="date"],
+    input[type="number"],
+    select,
+    textarea {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 11px 12px;
+      background: #fff;
+      color: var(--text);
+    }
+
+    input[readonly] {
+      background: #f8fafc;
+    }
+
+    textarea {
+      min-height: 90px;
+      resize: vertical;
+    }
+
+    .audit-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      overflow: hidden;
+    }
+
+    .audit-table th,
+    .audit-table td {
+      border-bottom: 1px solid var(--border);
+      padding: 12px;
+      vertical-align: top;
+    }
+
+    .audit-table th {
+      text-align: left;
+      background: #f8fafc;
+      font-size: 0.95rem;
+    }
+
+    .section-title {
+      background: #eff6ff;
+      font-weight: 700;
+      color: #1e3a8a;
+    }
+
+    .actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 16px;
+    }
+
+    button {
+      border: none;
+      border-radius: 12px;
+      padding: 11px 14px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .primary {
+      background: var(--accent);
+      color: white;
+    }
+
+    .primary:hover { background: var(--accent-2); }
+
+    .secondary {
+      background: #e2e8f0;
+      color: #0f172a;
+    }
+
+    .danger {
+      background: #fee2e2;
+      color: var(--danger);
+    }
+
+    .small-note {
+      font-size: 0.92rem;
+      color: var(--muted);
+    }
+
+    .ok { color: var(--ok); font-weight: 700; }
+    .warn { color: var(--warn); font-weight: 700; }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      margin-top: 8px;
+    }
+
+    .metric {
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 12px;
+      background: #fafafa;
+    }
+
+    .metric strong {
+      display: block;
+      font-size: 0.95rem;
+      margin-bottom: 4px;
+    }
+
+    .metric .value {
+      font-size: 1.8rem;
+      font-weight: 800;
+      line-height: 1.1;
+    }
+
+    .metric .sub {
+      font-size: 0.9rem;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    @media (max-width: 980px) {
+      .grid-2, .grid-3, .grid-4, .summary-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .audit-table, .audit-table tbody, .audit-table tr, .audit-table td, .audit-table th {
+        display: block;
+        width: 100%;
+      }
+
+      .audit-table thead {
+        display: none;
+      }
+
+      .audit-table tr {
+        border-bottom: 1px solid var(--border);
+      }
+
+      .audit-table td {
+        border-bottom: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>MW5 NEWS2 / TEP Ward Audit</h1>
+    <p>
+      Point-prevalence ward audit tool for NEWS2 and TEP documentation.
+    </p>
+    <p class="small-note">
+      Ward is fixed to MW5. Auditor is fixed to Yorick. Saved entries stay in this browser until exported as CSV.
+    </p>
+  </header>
+
+  <div class="wrap">
+    <div class="card">
+      <h2>Audit entry</h2>
+
+      <form id="auditForm">
+        <div class="grid grid-4">
+          <div>
+            <label for="auditDate">Date</label>
+            <input type="date" id="auditDate" name="audit_date" readonly />
+          </div>
+
+          <div>
+            <label for="ward">Ward</label>
+            <input type="text" id="ward" name="ward" value="MW5" readonly />
+          </div>
+
+          <div>
+            <label for="auditor">Auditor</label>
+            <input type="text" id="auditor" name="auditor" value="Yorick" readonly />
+          </div>
+
+          <div>
+            <label for="bedType">Type of bed</label>
+            <select id="bedType" name="bed_type" required>
+              <option value="">Select</option>
+              <option>Normal</option>
+              <option>Single room</option>
+              <option>CRE</option>
+            </select>
+          </div>
+        </div>
+
+        <table class="audit-table">
+          <thead>
+            <tr>
+              <th style="width: 48%;">Audit item</th>
+              <th style="width: 52%;">Response</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td class="section-title" colspan="2">Chart identification</td></tr>
+
+            <tr>
+              <td>Patient details correct and clear</td>
+              <td>
+                <select name="patient_details_correct" required>
+                  <option value="">Select</option>
+                  <option>Yes</option>
+                  <option>No</option>
+                  <option>N/A</option>
+                </select>
+              </td>
+            </tr>
+
+            <tr>
+              <td>All NEWS2 entries have a clear date</td>
+              <td>
+                <select name="clear_date" required>
+                  <option value="">Select</option>
+                  <option>Yes</option>
+                  <option>No</option>
+                  <option>N/A</option>
+                </select>
+              </td>
+            </tr>
+
+            <tr>
+              <td>All NEWS2 entries have a clear time</td>
+              <td>
+                <select name="clear_time" required>
+                  <option value="">Select</option>
+                  <option>Yes</option>
+                  <option>No</option>
+                  <option>N/A</option>
+                </select>
+              </td>
+            </tr>
+
+            <tr>
+              <td>All NEWS2 entries have a clear initialed by nurse</td>
+              <td>
+                <select name="clear_initials" required>
+                  <option value="">Select</option>
+                  <option>Yes</option>
+                  <option>No</option>
+                  <option>N/A</option>
+                </select>
+              </td>
+            </tr>
+
+            <tr><td class="section-title" colspan="2">Section 2 in all the chart(s)</td></tr>
+
+            <tr>
+              <td>All parameters marked correctly</td>
+              <td>
+                <select name="parameters_marked_correctly" required>
+                  <option value="">Select</option>
+                  <option>Yes</option>
+                  <option>No</option>
+                  <option>N/A</option>
+                </select>
+              </td>
+            </tr>
+
+            <tr>
+              <td>NEWS2 total and charted parameters match</td>
+              <td>
+                <select name="news_total_matches" required>
+                  <option value="">Select</option>
+                  <option>Yes</option>
+                  <option>No</option>
+                  <option>N/A</option>
+                </select>
+              </td>
+            </tr>
+
+            <tr>
+              <td>SpO2 scale marked and used correctly (scale 1 vs scale 2)</td>
+              <td>
+                <select name="spo2_scale_correct" required>
+                  <option value="">Select</option>
+                  <option>Yes</option>
+                  <option>No</option>
+                  <option>N/A</option>
+                </select>
+              </td>
+            </tr>
+
+            <tr>
+              <td>O2 device marked correctly</td>
+              <td>
+                <select name="o2_device_marked" required>
+                  <option value="">Select</option>
+                  <option>Yes</option>
+                  <option>No</option>
+                  <option>N/A</option>
+                </select>
+              </td>
+            </tr>
+
+            <tr>
+              <td>O2 flow marked correctly</td>
+              <td>
+                <select name="o2_flow_marked" required>
+                  <option value="">Select</option>
+                  <option>Yes</option>
+                  <option>No</option>
+                  <option>N/A</option>
+                </select>
+              </td>
+            </tr>
+
+            <tr>
+              <td>Parameters in red zone written correctly (as numbers)</td>
+              <td>
+                <select name="red_zone_written" required>
+                  <option value="">Select</option>
+                  <option>Yes</option>
+                  <option>No</option>
+                  <option>N/A</option>
+                </select>
+              </td>
+            </tr>
+
+            <tr>
+              <td>At least BD parameters</td>
+              <td>
+                <select name="bd_parameters" required>
+                  <option value="">Select</option>
+                  <option>Yes</option>
+                  <option>No</option>
+                  <option>N/A</option>
+                </select>
+              </td>
+            </tr>
+
+            <tr>
+              <td>Single parameter if yes is the reason valid</td>
+              <td>
+                <select name="single_parameter_reason_valid" required>
+                  <option value="">Select</option>
+                  <option>Yes</option>
+                  <option>No</option>
+                  <option>N/A</option>
+                </select>
+              </td>
+            </tr>
+
+            <tr><td class="section-title" colspan="2">Section 3 in the last 72hrs</td></tr>
+
+            <tr>
+              <td>Patient had NEWS2 0</td>
+              <td>
+                <select name="had_news_0" required>
+                  <option value="">Select</option>
+                  <option>Yes</option>
+                  <option>No</option>
+                  <option>N/A</option>
+                </select>
+              </td>
+            </tr>
+
+            <tr>
+              <td>Was the frequency of NEWS2 assessment correct</td>
+              <td>
+                <select name="freq_news_0_correct" required>
+                  <option value="">Select</option>
+                  <option>Yes</option>
+                  <option>No</option>
+                  <option>N/A</option>
+                </select>
+              </td>
+            </tr>
+
+            <tr>
+              <td>Patient had NEWS2 1-4</td>
+              <td>
+                <select name="had_news_1_4" required>
+                  <option value="">Select</option>
+                  <option>Yes</option>
+                  <option>No</option>
+                  <option>N/A</option>
+                </select>
+              </td>
+            </tr>
+
+            <tr>
+              <td>Was the frequency of NEWS2 assessment correct</td>
+              <td>
+                <select name="freq_news_1_4_correct" required>
+                  <option value="">Select</option>
+                  <option>Yes</option>
+                  <option>No</option>
+                  <option>N/A</option>
+                </select>
+              </td>
+            </tr>
+
+            <tr>
+              <td>Patient had NEWSs 5-6 OR 3 in one parameter</td>
+              <td>
+                <select name="had_news_5_6_or_3" required>
+                  <option value="">Select</option>
+                  <option>Yes</option>
+                  <option>No</option>
+                  <option>N/A</option>
+                </select>
+              </td>
+            </tr>
+
+            <tr>
+              <td>Was the frequency of NEWS2 assessment correct</td>
+              <td>
+                <select name="freq_news_5_6_or_3_correct" required>
+                  <option value="">Select</option>
+                  <option>Yes</option>
+                  <option>No</option>
+                  <option>N/A</option>
+                </select>
+              </td>
+            </tr>
+
+            <tr>
+              <td>Patient had NEWS2 more than 7</td>
+              <td>
+                <select name="had_news_over_7" required>
+                  <option value="">Select</option>
+                  <option>Yes</option>
+                  <option>No</option>
+                  <option>N/A</option>
+                </select>
+              </td>
+            </tr>
+
+            <tr>
+              <td>Was the frequency of NEWS2 assessment correct</td>
+              <td>
+                <select name="freq_news_over_7_correct" required>
+                  <option value="">Select</option>
+                  <option>Yes</option>
+                  <option>No</option>
+                  <option>N/A</option>
+                </select>
+              </td>
+            </tr>
+
+            <tr>
+              <td>Was the escalation for the first abnormal score correct and score number was X</td>
+              <td>
+                <div class="grid grid-2">
+                  <div>
+                    <select id="firstAbnormalEscalationCorrect" name="first_abnormal_escalation_correct" required>
+                      <option value="">Select</option>
+                      <option>Yes</option>
+                      <option>No</option>
+                      <option>N/A</option>
+                    </select>
+                  </div>
+                  <div>
+                    <input type="number" name="first_abnormal_score_number" min="0" max="20" placeholder="Score number" />
+                  </div>
+                </div>
+              </td>
+            </tr>
+
+            <tr>
+              <td>For the first abnormal score was the escalation documented on the Nursing Report ?</td>
+              <td>
+                <select name="first_abnormal_documented" required>
+                  <option value="">Select</option>
+                  <option>Yes</option>
+                  <option>No</option>
+                  <option>N/A</option>
+                </select>
+              </td>
+            </tr>
+
+            <tr>
+              <td>Nursing for patients during first escalation</td>
+              <td>
+                <select id="nurseDuringFirstType" name="nurse_during_first_type" required>
+                  <option value="">Select</option>
+                  <option>Ward nurse</option>
+                  <option>Non-ward nurse</option>
+                  <option>N/A</option>
+                </select>
+                <div id="nurseDuringFirstNameWrap" class="hidden" style="margin-top:10px;">
+                  <select id="nurseDuringFirstName" name="nurse_during_first_name">
+                    <option value="">Select ward nurse</option>
+                    <option>Francesco Caruana</option>
+                    <option>Nicole Caruana</option>
+                    <option>Halle Cassar</option>
+                    <option>Jeejo Jose Chowallur</option>
+                    <option>Feba Compagno Ramesh</option>
+                    <option>Blessy George</option>
+                    <option>Margherita Polidano</option>
+                    <option>Chatzie Psaila</option>
+                    <option>Roshni Puthenthara Rajan</option>
+                    <option>Akilesh Rajan</option>
+                    <option>Nagamba Ramesh</option>
+                    <option>Maronia Sammut</option>
+                    <option>Blessy Samuel</option>
+                    <option>Suman Sebastian</option>
+                    <option>Mabel Sinag</option>
+                    <option>Sihwa Sindiso</option>
+                    <option>Nintu Andruhan</option>
+                    <option>Arun Thomas</option>
+                    <option>Sumy Tommy</option>
+                    <option>Yana Vella</option>
+                    <option>Athira Vijayan</option>
+                    <option>Nikhila Xavier</option>
+                  </select>
+                </div>
+              </td>
+            </tr>
+
+            <tr>
+              <td>Was the escalation for the highest abnormal score correct and score number was X</td>
+              <td>
+                <div class="grid grid-2">
+                  <div>
+                    <select id="highestAbnormalEscalationCorrect" name="highest_abnormal_escalation_correct" required>
+                      <option value="">Select</option>
+                      <option>Yes</option>
+                      <option>No</option>
+                      <option>N/A</option>
+                    </select>
+                  </div>
+                  <div>
+                    <input type="number" name="highest_abnormal_score_number" min="0" max="20" placeholder="Score number" />
+                  </div>
+                </div>
+              </td>
+            </tr>
+
+            <tr>
+              <td>For the highest abnormal score was the escalation documented on the Nursing Report ?</td>
+              <td>
+                <select name="highest_abnormal_documented" required>
+                  <option value="">Select</option>
+                  <option>Yes</option>
+                  <option>No</option>
+                  <option>N/A</option>
+                </select>
+              </td>
+            </tr>
+
+            <tr>
+              <td>Nursing for patients during Highest NEWS2 escalation</td>
+              <td>
+                <select id="nurseDuringHighestType" name="nurse_during_highest_type" required>
+                  <option value="">Select</option>
+                  <option>Ward nurse</option>
+                  <option>Non-ward nurse</option>
+                  <option>N/A</option>
+                </select>
+                <div id="nurseDuringHighestNameWrap" class="hidden" style="margin-top:10px;">
+                  <select id="nurseDuringHighestName" name="nurse_during_highest_name">
+                    <option value="">Select ward nurse</option>
+                    <option>Francesco Caruana</option>
+                    <option>Nicole Caruana</option>
+                    <option>Halle Cassar</option>
+                    <option>Jeejo Jose Chowallur</option>
+                    <option>Feba Compagno Ramesh</option>
+                    <option>Blessy George</option>
+                    <option>Margherita Polidano</option>
+                    <option>Chatzie Psaila</option>
+                    <option>Roshni Puthenthara Rajan</option>
+                    <option>Akilesh Rajan</option>
+                    <option>Nagamba Ramesh</option>
+                    <option>Maronia Sammut</option>
+                    <option>Blessy Samuel</option>
+                    <option>Suman Sebastian</option>
+                    <option>Mabel Sinag</option>
+                    <option>Sihwa Sindiso</option>
+                    <option>Nintu Andruhan</option>
+                    <option>Arun Thomas</option>
+                    <option>Sumy Tommy</option>
+                    <option>Yana Vella</option>
+                    <option>Athira Vijayan</option>
+                    <option>Nikhila Xavier</option>
+                  </select>
+                </div>
+              </td>
+            </tr>
+
+            <tr>
+              <td>Was the patient labelled as for KGH or LTC</td>
+              <td>
+                <select name="labelled_kgh_ltc" required>
+                  <option value="">Select</option>
+                  <option>Yes</option>
+                  <option>No</option>
+                  <option>N/A</option>
+                </select>
+              </td>
+            </tr>
+
+            <tr><td class="section-title" colspan="2">TEP form</td></tr>
+
+            <tr>
+              <td>Was the TEP form present in the file?</td>
+              <td>
+                <select name="tep_present" required>
+                  <option value="">Select</option>
+                  <option>Yes</option>
+                  <option>No</option>
+                  <option>N/A</option>
+                </select>
+              </td>
+            </tr>
+
+            <tr>
+              <td>Visible at the front of the file</td>
+              <td>
+                <select name="tep_front" required>
+                  <option value="">Select</option>
+                  <option>Yes</option>
+                  <option>No</option>
+                  <option>N/A</option>
+                </select>
+              </td>
+            </tr>
+
+            <tr>
+              <td>Was the TEP form done ?</td>
+              <td>
+                <select name="tep_done" required>
+                  <option value="">Select</option>
+                  <option>Yes</option>
+                  <option>No</option>
+                  <option>N/A</option>
+                </select>
+              </td>
+            </tr>
+
+            <tr>
+              <td>TEP Level</td>
+              <td>
+                <select name="tep_level" required>
+                  <option value="">Select</option>
+                  <option>Level 1</option>
+                  <option>Level 2</option>
+                  <option>Level 3</option>
+                  <option>N/A</option>
+                </select>
+              </td>
+            </tr>
+
+            <tr>
+              <td>Was the form correctly filled in?</td>
+              <td>
+                <select name="tep_filled_correctly" required>
+                  <option value="">Select</option>
+                  <option>Yes</option>
+                  <option>No</option>
+                  <option>N/A</option>
+                </select>
+              </td>
+            </tr>
+
+            <tr>
+              <td>Admitting consultant</td>
+              <td>
+                <input type="text" name="admitting_consultant" placeholder="Enter consultant name" />
+              </td>
+            </tr>
+
+            <tr>
+              <td>Comments</td>
+              <td>
+                <textarea name="comments" placeholder="Optional notes"></textarea>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="actions">
+          <button type="button" class="primary" id="saveEntryBtn">Save audit entry</button>
+          <button type="button" class="secondary" id="exportCsvBtn">Export CSV</button>
+          <button type="button" class="secondary" id="downloadBlankBtn">Download blank CSV template</button>
+          <button type="button" class="danger" id="clearAllBtn">Clear all saved entries</button>
+        </div>
+
+        <p id="statusText" class="small-note"></p>
+      </form>
+    </div>
+
+    <div class="card">
+      <h2>Quick summary</h2>
+      <div class="summary-grid">
+        <div class="metric">
+          <strong>Cases saved</strong>
+          <div class="value" id="sum_cases">0</div>
+        </div>
+
+        <div class="metric">
+          <strong>TEP present</strong>
+          <div class="value" id="sum_tep_present_pct">0.0%</div>
+          <div class="sub" id="sum_tep_present_sub">0/0 assessable Yes</div>
+        </div>
+
+        <div class="metric">
+          <strong>TEP at front</strong>
+          <div class="value" id="sum_tep_front_pct">0.0%</div>
+          <div class="sub" id="sum_tep_front_sub">0/0 assessable Yes</div>
+        </div>
+
+        <div class="metric">
+          <strong>TEP done</strong>
+          <div class="value" id="sum_tep_done_pct">0.0%</div>
+          <div class="sub" id="sum_tep_done_sub">0/0 assessable Yes</div>
+        </div>
+
+        <div class="metric">
+          <strong>TEP level documented</strong>
+          <div class="value" id="sum_tep_level_pct">0.0%</div>
+          <div class="sub" id="sum_tep_level_sub">0/0 assessable Yes</div>
+        </div>
+
+        <div class="metric">
+          <strong>First abnormal documented in nursing report</strong>
+          <div class="value" id="sum_first_doc_pct">0.0%</div>
+          <div class="sub" id="sum_first_doc_sub">0/0 assessable Yes</div>
+        </div>
+
+        <div class="metric">
+          <strong>Highest abnormal documented in nursing report</strong>
+          <div class="value" id="sum_highest_doc_pct">0.0%</div>
+          <div class="sub" id="sum_highest_doc_sub">0/0 assessable Yes</div>
+        </div>
+
+        <div class="metric">
+          <strong>Highest abnormal escalated correctly</strong>
+          <div class="value" id="sum_highest_esc_pct">0.0%</div>
+          <div class="sub" id="sum_highest_esc_sub">0/0 assessable Yes</div>
+        </div>
+
+        <div class="metric">
+          <strong>TEP Level 1</strong>
+          <div class="value" id="sum_lvl1">0 / 0</div>
+        </div>
+
+        <div class="metric">
+          <strong>TEP Level 2</strong>
+          <div class="value" id="sum_lvl2">0 / 0</div>
+        </div>
+
+        <div class="metric">
+          <strong>TEP Level 3</strong>
+          <div class="value" id="sum_lvl3">0 / 0</div>
+        </div>
+      </div>
+
+      <p class="small-note">
+        These headline figures are descriptive only. More formal testing should still be done in Excel, R, SPSS, or Python.
+      </p>
+    </div>
+  </div>
+
+  <script>
+    const STORAGE_KEY = 'mw5_news2_tep_audit_entries_v5';
+    const auditDateInput = document.getElementById('auditDate');
+    const saveEntryBtn = document.getElementById('saveEntryBtn');
+    const exportCsvBtn = document.getElementById('exportCsvBtn');
+    const downloadBlankBtn = document.getElementById('downloadBlankBtn');
+    const clearAllBtn = document.getElementById('clearAllBtn');
+    const statusText = document.getElementById('statusText');
+    const form = document.getElementById('auditForm');
+
+    const nurseDuringFirstType = document.getElementById('nurseDuringFirstType');
+    const nurseDuringFirstNameWrap = document.getElementById('nurseDuringFirstNameWrap');
+    const nurseDuringFirstName = document.getElementById('nurseDuringFirstName');
+
+    const nurseDuringHighestType = document.getElementById('nurseDuringHighestType');
+    const nurseDuringHighestNameWrap = document.getElementById('nurseDuringHighestNameWrap');
+    const nurseDuringHighestName = document.getElementById('nurseDuringHighestName');
+
+    function setToday() {
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const day = String(now.getDate()).padStart(2, '0');
+      auditDateInput.value = `${year}-${month}-${day}`;
+    }
+
+    function toggleWardNurseField(typeEl, wrapEl, nameEl) {
+      const isWardNurse = typeEl.value === 'Ward nurse';
+      wrapEl.classList.toggle('hidden', !isWardNurse);
+      nameEl.required = isWardNurse;
+      if (!isWardNurse) nameEl.value = '';
+    }
+
+    function getEntries() {
+      try {
+        return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+      } catch (e) {
+        return [];
+      }
+    }
+
+    function saveEntries(entries) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+    }
+
+    function csvEscape(value) {
+      return `"${String(value ?? '').replace(/"/g, '""')}"`;
+    }
+
+    function buildEntry() {
+      const data = new FormData(form);
+      const entry = {};
+      for (const [key, value] of data.entries()) {
+        entry[key] = value;
+      }
+      entry.submitted_at = new Date().toISOString();
+      return entry;
+    }
+
+    function validateConditionalFields() {
+      if (nurseDuringFirstType.value === 'Ward nurse' && !nurseDuringFirstName.value) {
+        statusText.textContent = 'Please choose who the ward nurse was during first escalation.';
+        statusText.className = 'warn';
+        return false;
+      }
+      if (nurseDuringHighestType.value === 'Ward nurse' && !nurseDuringHighestName.value) {
+        statusText.textContent = 'Please choose who the ward nurse was during highest escalation.';
+        statusText.className = 'warn';
+        return false;
+      }
+      return true;
+    }
+
+    function toCsv(entries) {
+      if (!entries.length) return '';
+
+      const headers = Array.from(
+        entries.reduce((set, row) => {
+          Object.keys(row).forEach(k => set.add(k));
+          return set;
+        }, new Set())
+      );
+
+      const lines = [headers.map(csvEscape).join(',')];
+      entries.forEach(row => {
+        lines.push(headers.map(h => csvEscape(row[h] ?? '')).join(','));
+      });
+      return lines.join('\n');
+    }
+
+    function downloadFile(filename, content, type = 'text/csv;charset=utf-8;') {
+      const blob = new Blob([content], { type });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    function assessableYesMetrics(entries, fieldName, pctElId, subElId) {
+      const assessable = entries.filter(e => e[fieldName] !== 'N/A' && e[fieldName] !== '');
+      const yesCount = assessable.filter(e => e[fieldName] === 'Yes').length;
+      const pct = assessable.length ? ((yesCount / assessable.length) * 100).toFixed(1) : '0.0';
+      document.getElementById(pctElId).textContent = `${pct}%`;
+      document.getElementById(subElId).textContent = `${yesCount}/${assessable.length} assessable Yes`;
+    }
+
+    function updateSummary() {
+      const entries = getEntries();
+      document.getElementById('sum_cases').textContent = entries.length;
+
+      assessableYesMetrics(entries, 'tep_present', 'sum_tep_present_pct', 'sum_tep_present_sub');
+      assessableYesMetrics(entries, 'tep_front', 'sum_tep_front_pct', 'sum_tep_front_sub');
+      assessableYesMetrics(entries, 'tep_done', 'sum_tep_done_pct', 'sum_tep_done_sub');
+      assessableYesMetrics(entries, 'first_abnormal_documented', 'sum_first_doc_pct', 'sum_first_doc_sub');
+      assessableYesMetrics(entries, 'highest_abnormal_documented', 'sum_highest_doc_pct', 'sum_highest_doc_sub');
+      assessableYesMetrics(entries, 'highest_abnormal_escalation_correct', 'sum_highest_esc_pct', 'sum_highest_esc_sub');
+
+      const tepDoneCases = entries.filter(e => e.tep_done === 'Yes');
+      const tepLevelDocumented = tepDoneCases.filter(
+        e => e.tep_level === 'Level 1' || e.tep_level === 'Level 2' || e.tep_level === 'Level 3'
+      ).length;
+      const tepLevelPct = tepDoneCases.length ? ((tepLevelDocumented / tepDoneCases.length) * 100).toFixed(1) : '0.0';
+      document.getElementById('sum_tep_level_pct').textContent = `${tepLevelPct}%`;
+      document.getElementById('sum_tep_level_sub').textContent = `${tepLevelDocumented}/${tepDoneCases.length} assessable Yes`;
+
+      const tepLevelAssessable = entries.filter(
+        e => e.tep_level === 'Level 1' || e.tep_level === 'Level 2' || e.tep_level === 'Level 3'
+      );
+      const lvl1 = tepLevelAssessable.filter(e => e.tep_level === 'Level 1').length;
+      const lvl2 = tepLevelAssessable.filter(e => e.tep_level === 'Level 2').length;
+      const lvl3 = tepLevelAssessable.filter(e => e.tep_level === 'Level 3').length;
+
+      document.getElementById('sum_lvl1').textContent = `${lvl1} / ${tepLevelAssessable.length}`;
+      document.getElementById('sum_lvl2').textContent = `${lvl2} / ${tepLevelAssessable.length}`;
+      document.getElementById('sum_lvl3').textContent = `${lvl3} / ${tepLevelAssessable.length}`;
+    }
+
     setToday();
-    document.getElementById('ward').value = 'MW5';
-    document.getElementById('auditor').value = 'Yorick';
     toggleWardNurseField(nurseDuringFirstType, nurseDuringFirstNameWrap, nurseDuringFirstName);
     toggleWardNurseField(nurseDuringHighestType, nurseDuringHighestNameWrap, nurseDuringHighestName);
-  });
-
-  exportCsvBtn.addEventListener('click', () => {
-    const entries = getEntries();
-    if (!entries.length) {
-      statusText.textContent = 'No saved entries to export.';
-      return;
-    }
-    downloadFile('mw5_news2_tep_audit_entries.csv', toCsv(entries));
-    statusText.textContent = `CSV exported with ${entries.length} saved entries.`;
-  });
-
-  downloadBlankBtn.addEventListener('click', () => {
-    const blankHeaders = [
-      'audit_date','ward','auditor','bed_type','patient_details_correct',
-      'nurse_during_first_type','nurse_during_first_name',
-      'nurse_during_highest_type','nurse_during_highest_name',
-      'clear_date','clear_time','clear_initials','parameters_marked_correctly',
-      'news_total_matches','spo2_scale_correct','o2_device_marked','o2_flow_marked',
-      'red_zone_written','bd_parameters','single_parameter_reason_valid',
-      'had_news_0','freq_news_0_correct','had_news_1_4','freq_news_1_4_correct',
-      'had_news_5_6_or_3','freq_news_5_6_or_3_correct','had_news_over_7',
-      'freq_news_over_7_correct','first_abnormal_escalation_correct',
-      'first_abnormal_score_number','highest_abnormal_escalation_correct',
-      'highest_abnormal_score_number','first_abnormal_documented',
-      'highest_abnormal_documented','labelled_kgh_ltc','tep_present',
-      'tep_front','tep_done','tep_level','tep_filled_correctly',
-      'admitting_consultant','submitted_at'
-    ];
-    downloadFile('mw5_news2_tep_audit_blank_template.csv', blankHeaders.join(',') + '\n');
-    statusText.textContent = 'Blank CSV template downloaded.';
-  });
-
-  clearAllBtn.addEventListener('click', () => {
-    localStorage.removeItem(STORAGE_KEY);
     updateSummary();
-    statusText.textContent = 'All saved audit entries cleared.';
-  });
-</script>
+
+    nurseDuringFirstType.addEventListener('change', () => {
+      toggleWardNurseField(nurseDuringFirstType, nurseDuringFirstNameWrap, nurseDuringFirstName);
+    });
+
+    nurseDuringHighestType.addEventListener('change', () => {
+      toggleWardNurseField(nurseDuringHighestType, nurseDuringHighestNameWrap, nurseDuringHighestName);
+    });
+
+    saveEntryBtn.addEventListener('click', () => {
+      statusText.textContent = '';
+      statusText.className = 'small-note';
+
+      if (!form.reportValidity()) return;
+      if (!validateConditionalFields()) return;
+
+      const entries = getEntries();
+      entries.push(buildEntry());
+      saveEntries(entries);
+      updateSummary();
+
+      statusText.textContent = `Audit entry saved. Total saved entries: ${entries.length}.`;
+      statusText.className = 'ok';
+
+      form.reset();
+      setToday();
+      document.getElementById('ward').value = 'MW5';
+      document.getElementById('auditor').value = 'Yorick';
+      toggleWardNurseField(nurseDuringFirstType, nurseDuringFirstNameWrap, nurseDuringFirstName);
+      toggleWardNurseField(nurseDuringHighestType, nurseDuringHighestNameWrap, nurseDuringHighestName);
+    });
+
+    exportCsvBtn.addEventListener('click', () => {
+      const entries = getEntries();
+      if (!entries.length) {
+        statusText.textContent = 'No saved entries to export.';
+        statusText.className = 'warn';
+        return;
+      }
+      downloadFile('mw5_news2_tep_audit_entries.csv', toCsv(entries));
+      statusText.textContent = `CSV exported with ${entries.length} saved entries.`;
+      statusText.className = 'ok';
+    });
+
+    downloadBlankBtn.addEventListener('click', () => {
+      const blankHeaders = [
+        'audit_date',
+        'ward',
+        'auditor',
+        'bed_type',
+        'patient_details_correct',
+        'clear_date',
+        'clear_time',
+        'clear_initials',
+        'parameters_marked_correctly',
+        'news_total_matches',
+        'spo2_scale_correct',
+        'o2_device_marked',
+        'o2_flow_marked',
+        'red_zone_written',
+        'bd_parameters',
+        'single_parameter_reason_valid',
+        'had_news_0',
+        'freq_news_0_correct',
+        'had_news_1_4',
+        'freq_news_1_4_correct',
+        'had_news_5_6_or_3',
+        'freq_news_5_6_or_3_correct',
+        'had_news_over_7',
+        'freq_news_over_7_correct',
+        'first_abnormal_escalation_correct',
+        'first_abnormal_score_number',
+        'first_abnormal_documented',
+        'nurse_during_first_type',
+        'nurse_during_first_name',
+        'highest_abnormal_escalation_correct',
+        'highest_abnormal_score_number',
+        'highest_abnormal_documented',
+        'nurse_during_highest_type',
+        'nurse_during_highest_name',
+        'labelled_kgh_ltc',
+        'tep_present',
+        'tep_front',
+        'tep_done',
+        'tep_level',
+        'tep_filled_correctly',
+        'admitting_consultant',
+        'comments',
+        'submitted_at'
+      ];
+
+      downloadFile('mw5_news2_tep_audit_blank_template.csv', blankHeaders.join(',') + '\n');
+      statusText.textContent = 'Blank CSV template downloaded.';
+      statusText.className = 'ok';
+    });
+
+    clearAllBtn.addEventListener('click', () => {
+      localStorage.removeItem(STORAGE_KEY);
+      updateSummary();
+      statusText.textContent = 'All saved audit entries cleared.';
+      statusText.className = 'warn';
+    });
+  </script>
+</body>
+</html>
