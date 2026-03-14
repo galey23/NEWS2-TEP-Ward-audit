@@ -1,0 +1,189 @@
+<script>
+  const STORAGE_KEY = 'mw5_news2_tep_audit_entries_v4';
+  const auditDateInput = document.getElementById('auditDate');
+  const saveEntryBtn = document.getElementById('saveEntryBtn');
+  const exportCsvBtn = document.getElementById('exportCsvBtn');
+  const downloadBlankBtn = document.getElementById('downloadBlankBtn');
+  const clearAllBtn = document.getElementById('clearAllBtn');
+  const statusText = document.getElementById('statusText');
+  const form = document.getElementById('auditForm');
+
+  const nurseDuringFirstType = document.getElementById('nurseDuringFirstType');
+  const nurseDuringFirstNameWrap = document.getElementById('nurseDuringFirstNameWrap');
+  const nurseDuringFirstName = document.getElementById('nurseDuringFirstName');
+
+  const nurseDuringHighestType = document.getElementById('nurseDuringHighestType');
+  const nurseDuringHighestNameWrap = document.getElementById('nurseDuringHighestNameWrap');
+  const nurseDuringHighestName = document.getElementById('nurseDuringHighestName');
+
+  function setToday() {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    auditDateInput.value = `${year}-${month}-${day}`;
+  }
+
+  function toggleWardNurseField(typeEl, wrapEl, nameEl) {
+    const isWardNurse = typeEl.value === 'Ward nurse';
+    wrapEl.classList.toggle('hidden', !isWardNurse);
+    nameEl.required = isWardNurse;
+    if (!isWardNurse) nameEl.value = '';
+  }
+
+  function getEntries() {
+    try {
+      return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+    } catch {
+      return [];
+    }
+  }
+
+  function saveEntries(entries) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+  }
+
+  function csvEscape(value) {
+    return `"${String(value ?? '').replace(/"/g, '""')}"`;
+  }
+
+  function buildEntry() {
+    const data = new FormData(form);
+    const entry = {};
+    for (const [key, value] of data.entries()) entry[key] = value;
+    entry.submitted_at = new Date().toISOString();
+    return entry;
+  }
+
+  function validateConditionalFields() {
+    if (nurseDuringFirstType.value === 'Ward nurse' && !nurseDuringFirstName.value) {
+      statusText.textContent = 'Please choose who the ward nurse was during first escalation.';
+      return false;
+    }
+    if (nurseDuringHighestType.value === 'Ward nurse' && !nurseDuringHighestName.value) {
+      statusText.textContent = 'Please choose who the ward nurse was during highest escalation.';
+      return false;
+    }
+    return true;
+  }
+
+  function toCsv(entries) {
+    if (!entries.length) return '';
+    const headers = Array.from(entries.reduce((set, row) => {
+      Object.keys(row).forEach(k => set.add(k));
+      return set;
+    }, new Set()));
+    const lines = [headers.map(csvEscape).join(',')];
+    entries.forEach(row => lines.push(headers.map(h => csvEscape(row[h] ?? '')).join(',')));
+    return lines.join('\n');
+  }
+
+  function downloadFile(filename, content, type = 'text/csv;charset=utf-8;') {
+    const blob = new Blob([content], { type });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  function assessableYesMetrics(entries, fieldName, pctElId, subElId) {
+    const assessable = entries.filter(e => e[fieldName] !== 'N/A' && e[fieldName] !== '');
+    const yesCount = assessable.filter(e => e[fieldName] === 'Yes').length;
+    const pct = assessable.length ? ((yesCount / assessable.length) * 100).toFixed(1) : '0.0';
+    document.getElementById(pctElId).textContent = `${pct}%`;
+    document.getElementById(subElId).textContent = `${yesCount}/${assessable.length} assessable Yes`;
+  }
+
+  function updateSummary() {
+    const entries = getEntries();
+    document.getElementById('sum_cases').textContent = entries.length;
+    assessableYesMetrics(entries, 'tep_present', 'sum_tep_present_pct', 'sum_tep_present_sub');
+    assessableYesMetrics(entries, 'tep_front', 'sum_tep_front_pct', 'sum_tep_front_sub');
+    assessableYesMetrics(entries, 'tep_done', 'sum_tep_done_pct', 'sum_tep_done_sub');
+    assessableYesMetrics(entries, 'first_abnormal_documented', 'sum_first_doc_pct', 'sum_first_doc_sub');
+    assessableYesMetrics(entries, 'highest_abnormal_documented', 'sum_highest_doc_pct', 'sum_highest_doc_sub');
+    assessableYesMetrics(entries, 'highest_abnormal_escalation_correct', 'sum_highest_esc_pct', 'sum_highest_esc_sub');
+
+    const tepLevelAssessable = entries.filter(e => e.tep_level && e.tep_level !== 'N/A');
+    const lvl1 = tepLevelAssessable.filter(e => e.tep_level === 'Level 1').length;
+    const lvl2 = tepLevelAssessable.filter(e => e.tep_level === 'Level 2').length;
+    const lvl3 = tepLevelAssessable.filter(e => e.tep_level === 'Level 3').length;
+    document.getElementById('sum_tep_level_pct').textContent = tepLevelAssessable.length ? '100.0%' : '0.0%';
+    document.getElementById('sum_tep_level_sub').textContent = `${tepLevelAssessable.length}/${tepLevelAssessable.length} assessable Yes`;
+    document.getElementById('sum_lvl1').textContent = `${lvl1} / ${tepLevelAssessable.length}`;
+    document.getElementById('sum_lvl2').textContent = `${lvl2} / ${tepLevelAssessable.length}`;
+    document.getElementById('sum_lvl3').textContent = `${lvl3} / ${tepLevelAssessable.length}`;
+  }
+
+  setToday();
+  toggleWardNurseField(nurseDuringFirstType, nurseDuringFirstNameWrap, nurseDuringFirstName);
+  toggleWardNurseField(nurseDuringHighestType, nurseDuringHighestNameWrap, nurseDuringHighestName);
+  updateSummary();
+
+  nurseDuringFirstType.addEventListener('change', () =>
+    toggleWardNurseField(nurseDuringFirstType, nurseDuringFirstNameWrap, nurseDuringFirstName)
+  );
+
+  nurseDuringHighestType.addEventListener('change', () =>
+    toggleWardNurseField(nurseDuringHighestType, nurseDuringHighestNameWrap, nurseDuringHighestName)
+  );
+
+  saveEntryBtn.addEventListener('click', () => {
+    if (!form.reportValidity()) return;
+    if (!validateConditionalFields()) return;
+
+    const entries = getEntries();
+    entries.push(buildEntry());
+    saveEntries(entries);
+    updateSummary();
+
+    statusText.textContent = `Audit entry saved. Total saved entries: ${entries.length}.`;
+    form.reset();
+    setToday();
+    document.getElementById('ward').value = 'MW5';
+    document.getElementById('auditor').value = 'Yorick';
+    toggleWardNurseField(nurseDuringFirstType, nurseDuringFirstNameWrap, nurseDuringFirstName);
+    toggleWardNurseField(nurseDuringHighestType, nurseDuringHighestNameWrap, nurseDuringHighestName);
+  });
+
+  exportCsvBtn.addEventListener('click', () => {
+    const entries = getEntries();
+    if (!entries.length) {
+      statusText.textContent = 'No saved entries to export.';
+      return;
+    }
+    downloadFile('mw5_news2_tep_audit_entries.csv', toCsv(entries));
+    statusText.textContent = `CSV exported with ${entries.length} saved entries.`;
+  });
+
+  downloadBlankBtn.addEventListener('click', () => {
+    const blankHeaders = [
+      'audit_date','ward','auditor','bed_type','patient_details_correct',
+      'nurse_during_first_type','nurse_during_first_name',
+      'nurse_during_highest_type','nurse_during_highest_name',
+      'clear_date','clear_time','clear_initials','parameters_marked_correctly',
+      'news_total_matches','spo2_scale_correct','o2_device_marked','o2_flow_marked',
+      'red_zone_written','bd_parameters','single_parameter_reason_valid',
+      'had_news_0','freq_news_0_correct','had_news_1_4','freq_news_1_4_correct',
+      'had_news_5_6_or_3','freq_news_5_6_or_3_correct','had_news_over_7',
+      'freq_news_over_7_correct','first_abnormal_escalation_correct',
+      'first_abnormal_score_number','highest_abnormal_escalation_correct',
+      'highest_abnormal_score_number','first_abnormal_documented',
+      'highest_abnormal_documented','labelled_kgh_ltc','tep_present',
+      'tep_front','tep_done','tep_level','tep_filled_correctly',
+      'admitting_consultant','submitted_at'
+    ];
+    downloadFile('mw5_news2_tep_audit_blank_template.csv', blankHeaders.join(',') + '\n');
+    statusText.textContent = 'Blank CSV template downloaded.';
+  });
+
+  clearAllBtn.addEventListener('click', () => {
+    localStorage.removeItem(STORAGE_KEY);
+    updateSummary();
+    statusText.textContent = 'All saved audit entries cleared.';
+  });
+</script>
