@@ -16,7 +16,6 @@
       --danger: #dc2626;
       --ok: #15803d;
       --warn: #b45309;
-      --pill: #f1f5f9;
     }
 
     * { box-sizing: border-box; }
@@ -42,11 +41,6 @@
     h2 {
       margin-top: 0;
       font-size: 1.25rem;
-    }
-
-    h3 {
-      margin-bottom: 8px;
-      font-size: 1rem;
     }
 
     p {
@@ -75,7 +69,6 @@
     }
 
     .grid-2 { grid-template-columns: repeat(2, 1fr); }
-    .grid-3 { grid-template-columns: repeat(3, 1fr); }
     .grid-4 { grid-template-columns: repeat(4, 1fr); }
 
     label {
@@ -216,7 +209,7 @@
     }
 
     @media (max-width: 980px) {
-      .grid-2, .grid-3, .grid-4, .summary-grid {
+      .grid-2, .grid-4, .summary-grid {
         grid-template-columns: 1fr;
       }
 
@@ -242,12 +235,8 @@
 <body>
   <header>
     <h1>MW5 NEWS2 / TEP Ward Audit</h1>
-    <p>
-      Point-prevalence ward audit tool for NEWS2 and TEP documentation.
-    </p>
-    <p class="small-note">
-      Ward is fixed to MW5. Auditor is fixed to Yorick. Saved entries stay in this browser until exported as CSV.
-    </p>
+    <p>Point-prevalence ward audit tool for NEWS2 and TEP documentation.</p>
+    <p class="small-note">Ward is fixed to MW5. Auditor is fixed to Yorick. Saved entries stay in this browser until exported as CSV.</p>
   </header>
 
   <div class="wrap">
@@ -541,7 +530,7 @@
               <td>
                 <div class="grid grid-2">
                   <div>
-                    <select id="firstAbnormalEscalationCorrect" name="first_abnormal_escalation_correct" required>
+                    <select name="first_abnormal_escalation_correct" required>
                       <option value="">Select</option>
                       <option>Yes</option>
                       <option>No</option>
@@ -576,7 +565,9 @@
                   <option>Non-ward nurse</option>
                   <option>N/A</option>
                 </select>
+
                 <div id="nurseDuringFirstNameWrap" class="hidden" style="margin-top:10px;">
+                  <label for="nurseDuringFirstName">If ward nurse, who?</label>
                   <select id="nurseDuringFirstName" name="nurse_during_first_name">
                     <option value="">Select ward nurse</option>
                     <option>Francesco Caruana</option>
@@ -611,7 +602,7 @@
               <td>
                 <div class="grid grid-2">
                   <div>
-                    <select id="highestAbnormalEscalationCorrect" name="highest_abnormal_escalation_correct" required>
+                    <select name="highest_abnormal_escalation_correct" required>
                       <option value="">Select</option>
                       <option>Yes</option>
                       <option>No</option>
@@ -646,7 +637,9 @@
                   <option>Non-ward nurse</option>
                   <option>N/A</option>
                 </select>
+
                 <div id="nurseDuringHighestNameWrap" class="hidden" style="margin-top:10px;">
+                  <label for="nurseDuringHighestName">If ward nurse, who?</label>
                   <select id="nurseDuringHighestName" name="nurse_during_highest_name">
                     <option value="">Select ward nurse</option>
                     <option>Francesco Caruana</option>
@@ -851,7 +844,7 @@
   </div>
 
   <script>
-    const STORAGE_KEY = 'mw5_news2_tep_audit_entries_v5';
+    const STORAGE_KEY = 'mw5_news2_tep_audit_entries_v6';
     const auditDateInput = document.getElementById('auditDate');
     const saveEntryBtn = document.getElementById('saveEntryBtn');
     const exportCsvBtn = document.getElementById('exportCsvBtn');
@@ -896,7 +889,7 @@
     }
 
     function csvEscape(value) {
-      return `"${String(value ?? '').replace(/"/g, '""')}"`;
+      return '"' + String(value ?? '').replace(/"/g, '""') + '"';
     }
 
     function buildEntry() {
@@ -956,8 +949,8 @@
       const assessable = entries.filter(e => e[fieldName] !== 'N/A' && e[fieldName] !== '');
       const yesCount = assessable.filter(e => e[fieldName] === 'Yes').length;
       const pct = assessable.length ? ((yesCount / assessable.length) * 100).toFixed(1) : '0.0';
-      document.getElementById(pctElId).textContent = `${pct}%`;
-      document.getElementById(subElId).textContent = `${yesCount}/${assessable.length} assessable Yes`;
+      document.getElementById(pctElId).textContent = pct + '%';
+      document.getElementById(subElId).textContent = yesCount + '/' + assessable.length + ' assessable Yes';
     }
 
     function updateSummary() {
@@ -976,8 +969,8 @@
         e => e.tep_level === 'Level 1' || e.tep_level === 'Level 2' || e.tep_level === 'Level 3'
       ).length;
       const tepLevelPct = tepDoneCases.length ? ((tepLevelDocumented / tepDoneCases.length) * 100).toFixed(1) : '0.0';
-      document.getElementById('sum_tep_level_pct').textContent = `${tepLevelPct}%`;
-      document.getElementById('sum_tep_level_sub').textContent = `${tepLevelDocumented}/${tepDoneCases.length} assessable Yes`;
+      document.getElementById('sum_tep_level_pct').textContent = tepLevelPct + '%';
+      document.getElementById('sum_tep_level_sub').textContent = tepLevelDocumented + '/' + tepDoneCases.length + ' assessable Yes';
 
       const tepLevelAssessable = entries.filter(
         e => e.tep_level === 'Level 1' || e.tep_level === 'Level 2' || e.tep_level === 'Level 3'
@@ -986,9 +979,9 @@
       const lvl2 = tepLevelAssessable.filter(e => e.tep_level === 'Level 2').length;
       const lvl3 = tepLevelAssessable.filter(e => e.tep_level === 'Level 3').length;
 
-      document.getElementById('sum_lvl1').textContent = `${lvl1} / ${tepLevelAssessable.length}`;
-      document.getElementById('sum_lvl2').textContent = `${lvl2} / ${tepLevelAssessable.length}`;
-      document.getElementById('sum_lvl3').textContent = `${lvl3} / ${tepLevelAssessable.length}`;
+      document.getElementById('sum_lvl1').textContent = lvl1 + ' / ' + tepLevelAssessable.length;
+      document.getElementById('sum_lvl2').textContent = lvl2 + ' / ' + tepLevelAssessable.length;
+      document.getElementById('sum_lvl3').textContent = lvl3 + ' / ' + tepLevelAssessable.length;
     }
 
     setToday();
@@ -996,15 +989,15 @@
     toggleWardNurseField(nurseDuringHighestType, nurseDuringHighestNameWrap, nurseDuringHighestName);
     updateSummary();
 
-    nurseDuringFirstType.addEventListener('change', () => {
+    nurseDuringFirstType.addEventListener('change', function () {
       toggleWardNurseField(nurseDuringFirstType, nurseDuringFirstNameWrap, nurseDuringFirstName);
     });
 
-    nurseDuringHighestType.addEventListener('change', () => {
+    nurseDuringHighestType.addEventListener('change', function () {
       toggleWardNurseField(nurseDuringHighestType, nurseDuringHighestNameWrap, nurseDuringHighestName);
     });
 
-    saveEntryBtn.addEventListener('click', () => {
+    saveEntryBtn.addEventListener('click', function () {
       statusText.textContent = '';
       statusText.className = 'small-note';
 
@@ -1016,7 +1009,7 @@
       saveEntries(entries);
       updateSummary();
 
-      statusText.textContent = `Audit entry saved. Total saved entries: ${entries.length}.`;
+      statusText.textContent = 'Audit entry saved. Total saved entries: ' + entries.length + '.';
       statusText.className = 'ok';
 
       form.reset();
@@ -1027,7 +1020,7 @@
       toggleWardNurseField(nurseDuringHighestType, nurseDuringHighestNameWrap, nurseDuringHighestName);
     });
 
-    exportCsvBtn.addEventListener('click', () => {
+    exportCsvBtn.addEventListener('click', function () {
       const entries = getEntries();
       if (!entries.length) {
         statusText.textContent = 'No saved entries to export.';
@@ -1035,11 +1028,11 @@
         return;
       }
       downloadFile('mw5_news2_tep_audit_entries.csv', toCsv(entries));
-      statusText.textContent = `CSV exported with ${entries.length} saved entries.`;
+      statusText.textContent = 'CSV exported with ' + entries.length + ' saved entries.';
       statusText.className = 'ok';
     });
 
-    downloadBlankBtn.addEventListener('click', () => {
+    downloadBlankBtn.addEventListener('click', function () {
       const blankHeaders = [
         'audit_date',
         'ward',
@@ -1091,7 +1084,7 @@
       statusText.className = 'ok';
     });
 
-    clearAllBtn.addEventListener('click', () => {
+    clearAllBtn.addEventListener('click', function () {
       localStorage.removeItem(STORAGE_KEY);
       updateSummary();
       statusText.textContent = 'All saved audit entries cleared.';
